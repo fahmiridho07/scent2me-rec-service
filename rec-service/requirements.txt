@@ -6,6 +6,8 @@ scipy
 joblib
 numpy
 sqlmodel
-sqlalchemy
 passlib[bcrypt]
 python-jose[cryptography]
+sqlalchemy>=2.0
+psycopg2-binary
+python-dotenv

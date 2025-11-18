@@ -12,13 +12,19 @@ import os
 import re
 import json
 from .auth import router as auth_router
+from .db import Base, engine
 
 app = FastAPI(title="Scent2Me Recommendation API")
 
 # ------------------------------
 # CORS
 # ------------------------------
-ALLOW_ORIGINS = os.getenv("ALLOW_ORIGINS", "http://localhost:3000").split(",")
+ALLOW_ORIGINS = os.getenv(
+    "ALLOW_ORIGINS",
+    "http://localhost:3000,"
+    "https://scent2me-git-main-denjears-projects.vercel.app,"
+    "https://scent2me-rec-service-production.up.railway.app"
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in ALLOW_ORIGINS if o.strip()],
@@ -37,7 +43,6 @@ matrix_path = os.path.join(ART_DIR, "X_tfidf.npz")
 
 print(f"🔹 Loading artifacts from {ART_DIR} ...")
 meta = pd.read_csv(meta_path)
-print("📊 meta columns:", meta.columns.tolist())
 tfidf = load(tfidf_path)
 X_tfidf = sp.load_npz(matrix_path)
 
@@ -464,7 +469,9 @@ async def clear_wishlist(request: Request):
         raise
     except Exception as e:
         return {"error": f"Failed to clear wishlist: {e}"}
-    
+
+Base.metadata.create_all(bind=engine)
+
 # Include auth router
 app.include_router(auth_router, prefix="/auth")
 
