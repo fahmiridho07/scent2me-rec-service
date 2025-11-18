@@ -49,6 +49,9 @@ class Product(BaseModel):
     tags: Optional[str] = None
     buy_url: Optional[str] = None
 
+class WishlistPayload(BaseModel):
+    email: EmailStr
+    products: List[Product]
 
 # ------------------------------
 # Endpoints
@@ -142,28 +145,23 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/wishlist/{user_email}/add")
-async def add_to_wishlist(
-    user_email: str,
-    products: List[Product],
-    db: Session = Depends(get_db),
-):
+@router.post("/wishlist/add")
+async def add_to_wishlist(payload: WishlistPayload, db: Session = Depends(get_db)):
     """
-    Simpan produk ke wishlist berdasarkan email user.
-    Struktur body: langsung list Product (bukan dibungkus object lain).
+    Simpan banyak produk ke wishlist user.
+    Dipanggil dari frontend dengan POST ke /auth/wishlist/add
+    body: { email: string, products: [...] }
     """
-    user_obj = db.query(User).filter(User.email == user_email).first()
-    if not user_obj:
-        return {"success": False, "message": "User not found"}
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    created_count = 0
-
-    for p in products:
-        # Cegah duplikat basic (berdasarkan user + nama + brand)
+    # optional: clear duplikasi
+    for p in payload.products:
         exists = (
             db.query(WishlistItem)
             .filter(
-                WishlistItem.user_id == user_obj.id,
+                WishlistItem.user_id == user.id,
                 WishlistItem.name_display == p.name_display,
                 WishlistItem.brand_display == p.brand_display,
             )
@@ -173,7 +171,7 @@ async def add_to_wishlist(
             continue
 
         item = WishlistItem(
-            user_id=user_obj.id,
+            user_id=user.id,
             product_id=p.id,
             name_display=p.name_display,
             brand_display=p.brand_display,
@@ -184,48 +182,57 @@ async def add_to_wishlist(
             buy_url=p.buy_url,
         )
         db.add(item)
-        created_count += 1
 
     db.commit()
 
-    return {
-        "success": True,
-        "message": f"Products added to wishlist ({created_count} new items).",
-    }
+    return {"success": True, "message": "Products added to wishlist"}
 
+# ====== GET WISHLIST (dipakai di /wishlist page) ======
 
-@router.get("/wishlist/{user_email}")
-async def get_wishlist(user_email: str, db: Session = Depends(get_db)):
+@router.get("/wishlist")
+async def get_wishlist(email: EmailStr, db: Session = Depends(get_db)):
     """
-    Optional: ambil wishlist untuk user tertentu.
-    Bisa dipakai page /wishlist di frontend.
+    GET /auth/wishlist?email=...
     """
-    user_obj = db.query(User).filter(User.email == user_email).first()
-    if not user_obj:
-        return {"success": False, "message": "User not found", "items": []}
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return {"success": True, "wishlist": []}
 
     items = (
         db.query(WishlistItem)
-        .filter(WishlistItem.user_id == user_obj.id)
+        .filter(WishlistItem.user_id == user.id)
         .order_by(WishlistItem.created_at.desc())
         .all()
     )
 
-    return {
-        "success": True,
-        "items": [
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "name_display": item.name_display,
-                "brand_display": item.brand_display,
-                "image_url": item.image_url,
-                "price_num": item.price_num,
-                "rating_num": item.rating_num,
-                "tags": item.tags,
-                "buy_url": item.buy_url,
-                "created_at": item.created_at.isoformat(),
-            }
-            for item in items
-        ],
-    }
+    result = [
+        {
+            "id": item.id,
+            "product_id": item.product_id,
+            "name_display": item.name_display,
+            "brand_display": item.brand_display,
+            "image_url": item.image_url,
+            "price_num": item.price_num,
+            "rating_num": item.rating_num,
+            "tags": item.tags,
+            "buy_url": item.buy_url,
+        }
+        for item in items
+    ]
+
+    return {"success": True, "wishlist": result}
+
+# ====== CLEAR WISHLIST ======
+
+class ClearWishlistPayload(BaseModel):
+    email: EmailStr
+
+@router.post("/wishlist/clear")
+async def clear_wishlist(payload: ClearWishlistPayload, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        return {"success": True, "message": "Nothing to clear"}
+
+    db.query(WishlistItem).filter(WishlistItem.user_id == user.id).delete()
+    db.commit()
+    return {"success": True, "message": "Wishlist cleared"}
