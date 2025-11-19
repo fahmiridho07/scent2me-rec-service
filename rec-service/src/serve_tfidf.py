@@ -19,10 +19,7 @@ app = FastAPI(title="Scent2Me Recommendation API")
 # ------------------------------
 # CORS
 # ------------------------------
-DEFAULT_ALLOW_ORIGINS = (
-    "http://localhost:3000,"
-    "https://scent2me-h8364io4x-denjears-projects.vercel.app"
-)
+DEFAULT_ALLOW_ORIGINS = "http://localhost:3000,https://scent2me-h8364io4x-denjears-projects.vercel.app"
 
 raw_origins = os.getenv("ALLOW_ORIGINS", DEFAULT_ALLOW_ORIGINS)
 ALLOW_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
