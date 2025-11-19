@@ -19,21 +19,23 @@ app = FastAPI(title="Scent2Me Recommendation API")
 # ------------------------------
 # CORS
 # ------------------------------
-DEFAULT_ALLOW_ORIGINS = "http://localhost:3000,https://scent2me-h8364io4x-denjears-projects.vercel.app"
+ALLOW_ORIGINS = os.getenv(
+    "ALLOW_ORIGINS",
+    "http://localhost:3000,"
+    "https://scent2me-h8364io4x-denjears-projects.vercel.app,"
+    "https://scent2me.vercel.app"
 
-raw_origins = os.getenv("ALLOW_ORIGINS", DEFAULT_ALLOW_ORIGINS)
-ALLOW_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
+).split(",")
 
-print("✅ CORS ALLOW_ORIGINS:", ALLOW_ORIGINS)
+origins = [o.strip().rstrip("/") for o in ALLOW_ORIGINS if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOW_ORIGINS,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ------------------------------
 # Load artifacts
 # ------------------------------
