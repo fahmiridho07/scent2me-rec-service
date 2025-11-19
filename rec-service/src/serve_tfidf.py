@@ -22,7 +22,7 @@ app = FastAPI(title="Scent2Me Recommendation API")
 ALLOW_ORIGINS = os.getenv(
     "ALLOW_ORIGINS",
     "http://localhost:3000,"
-    "https://scent2me-h8364io4x-denjears-projects.vercel.app/,"
+    "https://scent2me-h8364io4x-denjears-projects.vercel.app,"
     "https://scent2me-rec-service-production.up.railway.app"
 ).split(",")
 app.add_middleware(
