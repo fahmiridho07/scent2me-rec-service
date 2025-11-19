@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List, Optional, Union
 import pandas as pd
@@ -36,6 +37,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def normalize_path_middleware(request: Request, call_next):
+    # Contoh: //auth/login → /auth/login
+    original_path = request.scope.get("path", "")
+    normalized_path = re.sub(r"/{2,}", "/", original_path)
+
+    if normalized_path != original_path:
+        # overwrite path di scope
+        request.scope["path"] = normalized_path
+
+    response: Response = await call_next(request)
+    return response
 # ------------------------------
 # Load artifacts
 # ------------------------------
