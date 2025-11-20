@@ -85,9 +85,10 @@ def _gender_canonical(s: Optional[str]) -> str:
         return "male"
     if s in {"wanita", "female", "woman", "perempuan", "cewek"}:
         return "female"
-    if s in {"unisex", "universal", ""}:
+    if s in {"unisex", "universal"}:
         return "unisex"
-    return "unisex"
+    # data kosong / nggak jelas
+    return "unknown"
 
 meta["_gender_lc"] = meta["gender"].astype(str).map(_gender_canonical)
 meta["_bag_lc"] = meta["bag_text"].astype(str).map(_norm)
@@ -249,11 +250,12 @@ def recommend_by_preference(req: PreferenceRequest):
         mask = np.ones(len(meta), dtype=bool)
 
         # Gender: pilih gender sama + unisex
+        # Gender: strict match 1:1 dengan preferensi
         if gender in {"male", "female", "unisex"}:
-            mask = mask & (
-                (meta["_gender_lc"].values == gender) |
-                (meta["_gender_lc"].values == "unisex")
-            )
+            gvals = meta["_gender_lc"].values
+            # allowed hanya persis sesuai pilihan user
+            allowed = {gender}
+            mask = mask & np.isin(gvals, list(allowed))
 
         # Families: cari kata di bag_text (regex word boundary sederhana)
         if fams:
