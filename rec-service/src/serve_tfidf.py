@@ -58,10 +58,14 @@ meta_path = os.path.join(ART_DIR, "meta.csv")
 tfidf_path = os.path.join(ART_DIR, "tfidf.pkl")
 matrix_path = os.path.join(ART_DIR, "X_tfidf.npz")
 
+
 print(f"🔹 Loading artifacts from {ART_DIR} ...")
 meta = pd.read_csv(meta_path)
 tfidf = load(tfidf_path)
 X_tfidf = sp.load_npz(matrix_path)
+
+if "id" not in meta.columns:
+    meta["id"] = np.arange(len(meta), dtype=int)
 
 # Ensure essential columns exist
 ESSENTIAL = ["name_display", "brand_display", "image_url", "buy_url", "price_num", "rating_num", "gender", "bag_text"]
@@ -75,7 +79,17 @@ def _norm(s: Optional[str]) -> str:
         return ""
     return re.sub(r"\s+", " ", s.strip().lower())
 
-meta["_gender_lc"] = meta["gender"].astype(str).map(_norm)
+def _gender_canonical(s: Optional[str]) -> str:
+    s = _norm(s or "")
+    if s in {"pria", "male", "man", "laki_laki", "laki-laki", "laki"}:
+        return "male"
+    if s in {"wanita", "female", "woman", "perempuan", "cewek"}:
+        return "female"
+    if s in {"unisex", "universal", ""}:
+        return "unisex"
+    return "unisex"
+
+meta["_gender_lc"] = meta["gender"].astype(str).map(_gender_canonical)
 meta["_bag_lc"] = meta["bag_text"].astype(str).map(_norm)
 
 print(f"✅ Loaded {len(meta)} perfumes")
@@ -220,7 +234,7 @@ def recommend_by_preference(req: PreferenceRequest):
             elif isinstance(req.family, str):
                 fams = [ _norm(req.family) ] if req.family else []
 
-        gender = _norm(req.gender or "unisex")
+        gender = _gender_canonical(req.gender or "unisex")
         time_of_day = _norm(req.time_of_day or req.context or "")
         performance = _norm(req.performance or req.longevity or "moderate")
         occasion = _norm(req.occasion or "")
@@ -290,14 +304,16 @@ def recommend_by_preference(req: PreferenceRequest):
             mask = mask & meta["_bag_lc"].str.contains(pat, regex=True, na=False).values
 
         # Price range
+        prices = meta["price_num"].to_numpy(dtype=float)
+
         if min_price is not None:
-            mask = mask & (meta["price_num"].fillna(0).values >= float(min_price))
+            mask = mask & (prices >= float(min_price))
         if max_price is not None:
-            mask = mask & (meta["price_num"].fillna(0).values <= float(max_price))
+            mask = mask & (prices <= float(max_price))
 
         # Jika filter terlalu ketat, longgarkan sedikit (fallback)
-        if not mask.any():
-            mask = np.ones(len(meta), dtype=bool)
+        # if not mask.any():
+        #    mask = np.ones(len(meta), dtype=bool)
 
         # --- 3) Scoring TF-IDF (safe masking) ---
         # Build a simple query text dari preferensi
