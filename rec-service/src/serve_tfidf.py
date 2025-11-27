@@ -155,13 +155,25 @@ def search(name: Optional[str] = Query(None), brand: Optional[str] = Query(None)
 
 
 # ------------------------------
-# GET /trending  (top-rated perfumes)
+# GET /trending  (top-sold and rated perfumes)
 # ------------------------------
 @app.get("/trending")
 def trending(top_k: int = 12):
-    # Sort by rating_num descending, drop NaN
-    sorted_meta = meta.dropna(subset=["rating_num"]).sort_values("rating_num", ascending=False)
-    order = sorted_meta.index[:top_k]
+    # Prefer ordering by sold_num first (descending) and use rating_num as a tiebreaker.
+
+    if "sold_num" in meta.columns:
+        # Copy and coerce numeric values safely
+        tmp = meta.copy()
+        tmp["_sold_num_f"] = pd.to_numeric(tmp["sold_num"], errors="coerce").fillna(0.0)
+        tmp["_rating_num_f"] = pd.to_numeric(tmp["rating_num"], errors="coerce").fillna(0.0)
+
+        # sort by sold desc, rating desc
+        sorted_meta = tmp.sort_values(["_sold_num_f", "_rating_num_f"], ascending=[False, False])
+        order = sorted_meta.index[:top_k]
+    else:
+        # keep legacy behaviour if sold_num not present
+        sorted_meta = meta.dropna(subset=["rating_num"]).sort_values("rating_num", ascending=False)
+        order = sorted_meta.index[:top_k]
 
     cols = ["id"] if "id" in meta.columns else []
     cols += ["name_display", "brand_display", "image_url", "buy_url", "price_num", "rating_num"]
